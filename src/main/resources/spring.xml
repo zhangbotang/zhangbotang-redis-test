@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.2.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.2.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.2.xsd">
+
+	
+	<!-- com.baidu下的东西给spring管理 -->
+	<context:component-scan base-package="com.zhangbotang.cms">
+	<!--不扫描controller注解 -->
+	<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+	</context:component-scan>
+	<!-- 配置数据源 -->
+	<bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource" >
+	   <property name="driverClassName" value="com.mysql.jdbc.Driver"></property>
+	   <property name="url" value="jdbc:mysql://10.56.31.47:3306/school"></property>
+	   <property name="username" value="root"></property>
+	   <property name="password" value="root"></property>
+	</bean>
+	
+	<!--创建SqlSessionFactory  -->
+	<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+	<property name="dataSource" ref="dataSource"/>
+	<property name="configLocation" value="classpath:mybatis.xml" />
+	</bean>
+	
+	<!-- 扫描mybatis操作数据库的接口 -->
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+	<property name="basePackage">
+		<value>com.zhangbotang.cms.dao</value>
+	</property>
+	<property name="sqlSessionFactory" ref="sqlSessionFactory"/>
+	</bean>
+	
+	<!-- 配置事务管理器 -->
+	<!-- 将数据源注入,使其能对我们执行的sql语句进行事务管理 -->
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource"></property>
+	</bean>
+	
+	<tx:advice id="txAdvice" transaction-manager="transactionManager">
+  <tx:attributes>
+     <!-- 配置只读事务.提高查询效率 -->
+	    <tx:method name="get*" read-only="true"/>
+	    <tx:method name="load*" read-only="true"/>
+	    <tx:method name="select*" read-only="true"/>
+	    <tx:method name="list*" read-only="true"/>
+	    <!--其他的为正常事务 -->
+	    <tx:method name="*"/>
+	  </tx:attributes>
+	</tx:advice>
+	
+	<!-- 使用xml 的方法配置事务 -->
+	<aop:config>
+	   <!-- 切点表达式 -->
+	  <aop:pointcut expression="execution(* com.zhangbotang.cms.service.*.*(..))" id="pointcut"/>
+	  <aop:advisor advice-ref="txAdvice" pointcut-ref="pointcut"/>
+	</aop:config>
+	
+	<!-- 配置redis的配置 -->
+	<bean id="jedisConnectionFactory"
+		class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory"
+		p:use-pool="true" p:port="6379" p:hostName="192.168.13.128" />
+
+
+	<!-- 声明bean对象 redis string的序列化 -->
+	<bean id="stringRedisSerializer"
+		class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+	
+	<!-- 声明bean对象 json序列化方式 -->
+	<bean id="genericJackson2JsonRedisSerializer" class="org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer"/>
+
+
+    <!-- 声明bean对象  jdk 序列化方式-->
+    <bean id="jdkSerializationRedisSerializer" class="org.springframework.data.redis.serializer.JdkSerializationRedisSerializer"/>
+	
+	
+	<!-- 配置一个redis模板对象 -->
+	<bean id="redisTemplate"
+		class="org.springframework.data.redis.core.RedisTemplate"
+		p:connection-factory-ref="jedisConnectionFactory">
+		<property name="keySerializer" ref="stringRedisSerializer" />
+		<!-- 只修改value -->
+		<property name="valueSerializer" ref="genericJackson2JsonRedisSerializer"/>
+		
+		<property name="hashKeySerializer" ref="stringRedisSerializer" />
+		<property name="hashValueSerializer" ref="stringRedisSerializer"/> 
+	</bean>
+	
+</beans>
